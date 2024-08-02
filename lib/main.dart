@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:barcode_list/barcode.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -37,7 +38,7 @@ class BarcodeReaderExample extends StatefulWidget {
 }
 
 class _BarcodeReaderExampleState extends State<BarcodeReaderExample> {
-  List<String> _barcodes = [];
+  List<Map<String, String>> _barcodesAndNames = [];
 
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -49,41 +50,58 @@ class _BarcodeReaderExampleState extends State<BarcodeReaderExample> {
       String? path = result.files.single.path;
 
       if (path != null) {
-        List<String> barcodes = await _loadCSV(path);
+        List<Map<String, String>> barcodesAndNames = await _loadCSV(path);
         setState(() {
-          _barcodes = barcodes;
+          _barcodesAndNames = barcodesAndNames;
         });
       }
     }
   }
 
-  Future<List<String>> _loadCSV(String path) async {
+  Future<List<Map<String, String>>> _loadCSV(String path) async {
     final file = File(path).openRead();
-    final data = await file
+    final lines = await file
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .toList();
 
-    return data.map((line) => line.trim()).toList();
+    final list = lines.map((line) {
+      final parts = line.split(',');
+      return {'barcode': parts[0].trim(), 'name': parts[1].trim()};
+    }).toList();
+
+    print(list);
+
+    return list;
   }
 
   Future<void> _printBarcodes() async {
+    final fontData = await rootBundle.load("assets/fonts/Roboto-Regular.ttf");
+    final ttf = pw.Font.ttf(fontData);
+
     final doc = pw.Document();
     final barcodeWidgets = <pw.Widget>[];
 
-    for (final code in _barcodes) {
+    for (final item in _barcodesAndNames) {
       barcodeWidgets.add(
         pw.Padding(
           padding: const pw.EdgeInsets.all(8.0),
-          child: pw.Container(
-            width: 200,
-            height: 100,
-            child: pw.BarcodeWidget(
-              barcode: pw.Barcode.code39(), // Barcode type and settings
-              data: code, // Content
-              width: 200,
-              height: 100,
-            ),
+          child: pw.Column(
+            children: [
+              pw.Container(
+                width: 200,
+                height: 100,
+                child: pw.BarcodeWidget(
+                  barcode: pw.Barcode.code39(), // Barcode type and settings
+                  data: item['barcode']!, // Barcode data
+                  width: 200,
+                  height: 100,
+                  textStyle: pw.TextStyle(font: ttf),
+                ),
+              ),
+              pw.Text(item['name']!,
+                  style: pw.TextStyle(font: ttf)), // Item name
+            ],
           ),
         ),
       );
@@ -121,7 +139,7 @@ class _BarcodeReaderExampleState extends State<BarcodeReaderExample> {
             ),
           ],
         ),
-        body: _barcodes.isEmpty
+        body: _barcodesAndNames.isEmpty
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -134,7 +152,7 @@ class _BarcodeReaderExampleState extends State<BarcodeReaderExample> {
                 ],
               )
             : BarcodeWrapView(
-                numberList: _barcodes,
+                items: _barcodesAndNames,
               ));
   }
 }
