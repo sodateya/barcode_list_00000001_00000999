@@ -43,14 +43,14 @@ class _BarcodeReaderExampleState extends State<BarcodeReaderExample> {
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv'],
+      allowedExtensions: ['json'],
     );
 
     if (result != null) {
       String? path = result.files.single.path;
 
       if (path != null) {
-        List<Map<String, String>> barcodesAndNames = await _loadCSV(path);
+        List<Map<String, String>> barcodesAndNames = await _loadJSON(path);
         setState(() {
           _barcodesAndNames = barcodesAndNames;
         });
@@ -58,21 +58,17 @@ class _BarcodeReaderExampleState extends State<BarcodeReaderExample> {
     }
   }
 
-  Future<List<Map<String, String>>> _loadCSV(String path) async {
-    final file = File(path).openRead();
-    final lines = await file
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .toList();
+  Future<List<Map<String, String>>> _loadJSON(String path) async {
+    final file = File(path);
+    final jsonString = await file.readAsString(encoding: utf8);
+    final Map<String, dynamic> jsonData = jsonDecode(jsonString);
 
-    final list = lines.map((line) {
-      final parts = line.split(',');
-      return {'barcode': parts[0].trim(), 'name': parts[1].trim()};
+    return (jsonData['data'] as List).map((entry) {
+      return {
+        'barcode': entry['barcode'].toString().trim(),
+        'name': entry['name'].toString().trim()
+      };
     }).toList();
-
-    print(list);
-
-    return list;
   }
 
   Future<void> _printBarcodes() async {
@@ -145,10 +141,10 @@ class _BarcodeReaderExampleState extends State<BarcodeReaderExample> {
                 children: [
                   const Padding(
                     padding: EdgeInsets.all(8.0),
-                    child: Center(child: Text('csvファイルを選択してください')),
+                    child: Center(child: Text('JSONファイルを選択してください')),
                   ),
                   TextButton(
-                      onPressed: _pickFile, child: const Text('csvファイルを選択'))
+                      onPressed: _pickFile, child: const Text('JSONファイルを選択'))
                 ],
               )
             : BarcodeWrapView(
